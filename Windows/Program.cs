@@ -27,7 +27,7 @@ internal sealed class MainForm : Form
         Height = 390;
         MinimumSize = new Size(520, 350);
         StartPosition = FormStartPosition.CenterScreen;
-        service = new ReceiverService(SetStatus, SetTrustState);
+        service = new ReceiverService(SetStatus, SetTrustState, () => Handle);
 
         var title = new Label { Text = "KEYBRIDGE", AutoSize = true, Font = new Font("Segoe UI", 20, FontStyle.Bold) };
         var explanation = new Label
@@ -126,6 +126,7 @@ internal sealed class ReceiverService
     private static readonly Guid ServiceUuid = new("e7d12867-9072-47f6-ae29-c12272ca5b37");
     private readonly Action<string> report;
     private readonly Action<bool> trustChanged;
+    private readonly Func<IntPtr> receiverWindow;
     private readonly TrustedDeviceStore store = new();
     private readonly SemaphoreSlim connectionGate = new(1, 1);
     private StreamSocketListener? listener;
@@ -134,10 +135,11 @@ internal sealed class ReceiverService
     private readonly Dictionary<string, byte> recentMessages = new();
     private readonly object recentLock = new();
 
-    public ReceiverService(Action<string> report, Action<bool> trustChanged)
+    public ReceiverService(Action<string> report, Action<bool> trustChanged, Func<IntPtr> receiverWindow)
     {
         this.report = report;
         this.trustChanged = trustChanged;
+        this.receiverWindow = receiverWindow;
         trusted = store.Load();
         PairingCode = NewPairingCode();
     }
@@ -228,7 +230,7 @@ internal sealed class ReceiverService
                     {
                         1 => "已送出輸入事件；請檢查目標欄位內容。",
                         2 => "只送出部分輸入事件；請先檢查電腦，勿直接重送。",
-                        _ => "輸入被拒絕或無法處理；請確認電腦焦點。"
+                        _ => "未送出：請先點選要輸入的文字欄位，不要讓 KEYBRIDGE 接收程式保持焦點。"
                     });
                 }
             }
@@ -326,12 +328,12 @@ internal sealed class ReceiverService
 
     private static string NewPairingCode() => RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
 
-    private static byte Inject(string text)
+    private byte Inject(string text)
     {
         text = text.Replace("\r\n", "\n").Replace('\r', '\n');
         const int chunkChars = 128;
         var originalWindow = GetForegroundWindow();
-        if (originalWindow == IntPtr.Zero || originalWindow == GetConsoleWindow()) return 0;
+        if (originalWindow == IntPtr.Zero || originalWindow == GetConsoleWindow() || originalWindow == receiverWindow()) return 0;
         var sentAny = false;
         for (var start = 0; start < text.Length; start += chunkChars)
         {

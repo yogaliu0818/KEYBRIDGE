@@ -168,9 +168,18 @@ class Transport(private val context: Context, private val status: (String) -> Un
         return true
     }
 
+    fun startHid() {
+        desiredHost = null
+        registerHid()
+    }
+
     fun startHid(d: BluetoothDevice) {
         desiredHost = d
         if (hid != null && registered) { hid?.connect(d); return }
+        registerHid()
+    }
+
+    private fun registerHid() {
         val ok = adapter?.getProfileProxy(context, object : BluetoothProfile.ServiceListener {
             override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
                 val h = proxy as BluetoothHidDevice; hid = h
@@ -183,8 +192,8 @@ class Transport(private val context: Context, private val status: (String) -> Un
     }
 
     private val callback = object : BluetoothHidDevice.Callback() {
-        override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, isRegistered: Boolean) { registered = isRegistered; if (isRegistered) { status("HID 已註冊，正在連線"); desiredHost?.let { if (hid?.connect(it) != true) status("HID 連線請求失敗") } } else { host = null; status("HID 已取消註冊或系統不支援") } }
-        override fun onConnectionStateChanged(device: BluetoothDevice?, state: Int) { host = if (state == BluetoothProfile.STATE_CONNECTED) device else null; status(if (host != null) "HID 鍵盤已連線：${device?.name}" else "HID 連線狀態：$state") }
+        override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, isRegistered: Boolean) { registered = isRegistered; if (isRegistered) { status(if (desiredHost == null) "手機鍵盤已啟用；請在 Windows 新增藍牙裝置並選擇 KEYBRIDGE" else "HID 已註冊，正在連線"); desiredHost?.let { if (hid?.connect(it) != true) status("HID 連線請求失敗") } } else { host = null; status("HID 已取消註冊或系統不支援") } }
+        override fun onConnectionStateChanged(device: BluetoothDevice?, state: Int) { host = if (state == BluetoothProfile.STATE_CONNECTED) device else null; if (host != null) device?.let { prefs.edit().putString("hid_device_address", it.address).apply() }; status(if (host != null) "HID 鍵盤已連線：${device?.name}" else "HID 連線狀態：$state") }
     }
 
     suspend fun sendHid(text: String, delayMs: Long = 15): String = withContext(Dispatchers.IO) {

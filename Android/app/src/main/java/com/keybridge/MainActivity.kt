@@ -45,8 +45,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 
-private const val WINDOWS_RELEASE_URL = "https://github.com/yogaliu0818/KEYBRIDGE/releases/tag/v0.7.1-beta"
-private const val WINDOWS_PACKAGE_URL = "https://github.com/yogaliu0818/KEYBRIDGE/releases/download/v0.7.1-beta/KEYBRIDGE_Windows_receiver_0.7.1-beta.zip"
+private const val WINDOWS_RELEASE_URL = "https://github.com/yogaliu0818/KEYBRIDGE/releases/tag/v0.7.2-beta"
+private const val WINDOWS_PACKAGE_URL = "https://github.com/yogaliu0818/KEYBRIDGE/releases/download/v0.7.2-beta/KEYBRIDGE_Windows_receiver_0.7.2-beta.zip"
 private const val POWERSHELL_INSTALL_COMMAND = """${'$'}kbScript = Join-Path ${'$'}env:TEMP 'Start-KEYBRIDGE.ps1'
 Invoke-WebRequest 'https://raw.githubusercontent.com/yogaliu0818/KEYBRIDGE/main/Start-KEYBRIDGE.ps1' -OutFile ${'$'}kbScript
 Get-Content ${'$'}kbScript
@@ -73,14 +73,22 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(shareSequence) { if (shareSequence > 0) { text = if (text.isEmpty()) imported else text + "\n" + imported; status = "已加入分享的文字，請確認內容" } }
                 var settings by remember { mutableStateOf(false) }
                 var pin by remember { mutableStateOf("") }
-                var mode by remember { mutableStateOf(false) }
+                var mode by remember { mutableStateOf(true) }
                 var trusted by remember { mutableStateOf(transport.isTrusted()) }
                 var busy by remember { mutableStateOf(false) }
                 var devices by remember { mutableStateOf(emptyList<android.bluetooth.BluetoothDevice>()) }
                 var selected by remember { mutableStateOf<android.bluetooth.BluetoothDevice?>(null) }
                 val scope = rememberCoroutineScope()
+                val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                    if (granted) { devices = transport.devices(); status = "附近裝置權限已開啟" } else status = "需要附近裝置權限才能使用藍牙；請到 Android 設定允許"
+                }
                 LaunchedEffect(Unit) {
+                    if (Build.VERSION.SDK_INT >= 31 && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                        delay(250)
+                        permission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                    }
                     val canReadBluetooth = Build.VERSION.SDK_INT < 31 || ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+                    if (canReadBluetooth && prefs.getBoolean("hid_enabled", false)) transport.startHid()
                     if (canReadBluetooth && transport.isTrusted()) {
                         runCatching { transport.savedDevice() }.getOrNull()?.let { saved ->
                             selected = saved
@@ -94,9 +102,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 BackHandler(enabled = settings) { settings = false }
-                val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-                    if (granted) { devices = transport.devices(); status = "請選擇已配對的電腦" } else status = "需要附近裝置權限才能使用藍牙"
-                }
                 MaterialTheme(colorScheme = if (light) lightColorScheme(primary = Color(0xFF006D87)) else darkColorScheme(primary = Color(0xFFD1F13C), background = Color(0xFF05080A), surface = Color(0xFF101519), surfaceVariant = Color(0xFF161C1F), onSurface = Color(0xFFF0F3F2))) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     Column(Modifier.fillMaxSize().background(if (light) Brush.verticalGradient(listOf(Color(0xFFF3F9FB), Color(0xFFFFFFFF))) else Brush.verticalGradient(listOf(Color(0xFF11171B), Color(0xFF05090B), Color(0xFF06090B)))).safeDrawingPadding().imePadding().padding(horizontal = 22.dp)) {
@@ -110,24 +115,26 @@ class MainActivity : ComponentActivity() {
                         if (settings) {
                             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Text("我的電腦", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                Text(if (trusted) "已記住這台電腦。下次開啟 App 會自動嘗試連線；傳送前仍會等你按下「傳送」。" else "第一次使用：先在 Windows 藍牙設定中與手機配對，再輸入 Windows 顯示的代碼。成功後會記住這台電腦。", style = MaterialTheme.typography.bodySmall)
+                                Text(if (mode) "直接鍵盤模式：不需要在 Windows 安裝任何程式。先啟用手機鍵盤，再到 Windows 新增藍牙裝置並選擇這支手機。" else if (trusted) "已記住這台電腦。下次開啟 App 會自動嘗試連線；傳送前仍會等你按下「傳送」。" else "進階完整文字模式需要 Windows 接收程式與首次信任代碼。", style = MaterialTheme.typography.bodySmall)
                                 OutlinedButton(enabled = !busy, onClick = {
                                     if (Build.VERSION.SDK_INT >= 31 && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) permission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                                    else if (mode) { prefs.edit().putBoolean("hid_enabled", true).apply(); transport.startHid(); status = "手機鍵盤已啟用；請在 Windows 新增藍牙裝置並選擇 KEYBRIDGE" }
                                     else { devices = transport.devices(); status = if (transport.available()) "請選擇已配對的電腦" else "請開啟藍牙" }
-                                }) { Text("選擇已配對裝置") }
-                                devices.forEach { d -> Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = selected == d, onClick = { selected = d }, enabled = !busy); Text(transport.deviceName(d)) } }
+                                }) { Text(if (Build.VERSION.SDK_INT >= 31 && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) "允許附近裝置並載入電腦" else if (mode) "啟用手機鍵盤" else "選擇已配對裝置") }
+                                if (!mode) devices.forEach { d -> Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = selected == d, onClick = { selected = d }, enabled = !busy); Text(transport.deviceName(d)) } }
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    FilterChip(selected = !mode, onClick = { mode = false; transport.stop(); status = "已切換完整文字模式" }, label = { Text("完整文字") }, enabled = !busy)
-                                    FilterChip(selected = mode, onClick = { mode = true; transport.stop(); status = "已切換藍牙鍵盤模式" }, label = { Text("藍牙鍵盤") }, enabled = !busy)
+                                    FilterChip(selected = mode, onClick = { mode = true; transport.stop(); status = "已切換直接鍵盤模式" }, label = { Text("直接鍵盤") }, enabled = !busy)
+                                    FilterChip(selected = !mode, onClick = { mode = false; transport.stop(); status = "已切換完整文字模式" }, label = { Text("完整文字（進階）") }, enabled = !busy)
                                 }
-                                Text(if (mode) "支援英文和基本符號，無法直接傳送中文。" else "支援中文及 Emoji，需要 Windows 接收程式。", style = MaterialTheme.typography.bodySmall)
+                                Text(if (mode) "支援英文、數字、基本符號與 Enter；標準 HID 鍵盤無法直接傳送中文或 Emoji。" else "支援中文及 Emoji，但需要 Windows 接收程式。", style = MaterialTheme.typography.bodySmall)
                                 if (!mode && !trusted) OutlinedTextField(pin, { pin = it.filter { c -> c in '0'..'9' }.take(6) }, label = { Text("第一次連線：Windows 顯示的 6 位數代碼") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(enabled = selected != null && !busy && !simulation, onClick = { val d = selected ?: return@Button; if (mode) transport.startHid(d) else scope.launch { busy = true; status = "正在連線…"; try { status = transport.connect(d, pin); trusted = transport.isTrusted() } finally { busy = false } } }) { Text(if (trusted) "重新連線" else "第一次配對") }
+                                    Button(enabled = !busy && !simulation && (mode || selected != null), onClick = { if (mode) { prefs.edit().putBoolean("hid_enabled", true).apply(); transport.startHid(); status = "手機鍵盤已啟用；請在 Windows 新增藍牙裝置並選擇 KEYBRIDGE" } else { val d = selected ?: return@Button; scope.launch { busy = true; status = "正在連線…"; try { status = transport.connect(d, pin); trusted = transport.isTrusted() } finally { busy = false } } } }) { Text(if (mode) "啟用手機鍵盤" else if (trusted) "重新連線" else "第一次配對") }
                                     OutlinedButton(enabled = !busy, onClick = { transport.stop(); status = "已斷線" }) { Text("斷線") }
                                 }
                                 if (trusted && !mode) TextButton(enabled = !busy, onClick = { transport.forgetTrust(); trusted = false; selected = null; pin = ""; status = "已清除手機端信任，請在 Windows 也按「解除信任」後重新配對" }) { Text("解除信任／重新配對") }
                                 Text(status, color = MaterialTheme.colorScheme.primary)
+                                if (!mode) {
                                 HorizontalDivider()
                                 Text("Windows 電腦端", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Text("選一種方式安裝接收程式。兩種方式都不需要管理員權限；PowerShell 啟動器會在下載後驗證 SHA-256。", style = MaterialTheme.typography.bodySmall)
@@ -144,6 +151,7 @@ class MainActivity : ComponentActivity() {
                                     Toast.makeText(this@MainActivity, "PowerShell 指令已複製", Toast.LENGTH_SHORT).show()
                                 }, modifier = Modifier.fillMaxWidth()) { Text("複製 PowerShell 指令") }
                                 Text("安裝後：Windows 與手機先完成系統藍牙配對 → 開啟接收程式 → 在這裡選擇電腦、輸入 6 位數代碼並連線。第一次成功後會記住這台電腦。", style = MaterialTheme.typography.bodySmall)
+                                }
                                 HorizontalDivider()
                                 Text("一般", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("淺色模式"); Switch(light, { light = it; prefs.edit().putBoolean("light", it).apply() }) }

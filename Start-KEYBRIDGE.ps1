@@ -1,11 +1,11 @@
-<# KEYBRIDGE 0.7.1 beta: verify the receiver before every launch. #>
+<# KEYBRIDGE 0.7.2 beta: verify the receiver before every launch. #>
 [CmdletBinding()]
 param()
 $ErrorActionPreference = 'Stop'
-$version = 'v0.7.1-beta'
-$zipHash = '5119BE60C69C69BA25AC0D690AB6FAC7F458238DD3B086A5405C3700C1D2AE6D'
-$exeHash = 'CA9FD5C18DFA691A6533A4AF5CF654731E23542522D7F875963CCBF782B1CFB9'
-$url = 'https://github.com/yogaliu0818/KEYBRIDGE/releases/download/v0.7.1-beta/KEYBRIDGE_Windows_receiver_0.7.1-beta.zip'
+$version = 'v0.7.2-beta'
+$zipHash = '41B0EDBCA05113C27A3DE52C7BCEB140C2E3930BA75C3F684449B3E4E9BE7B97'
+$exeHash = '94DE44812501D02D876ADD30FC5DDDE24A7028AF484A8C15A3BAF7C54AD00CA1'
+$url = 'https://github.com/yogaliu0818/KEYBRIDGE/releases/download/v0.7.2-beta/KEYBRIDGE_Windows_receiver_0.7.2-beta.zip'
 $installDir = Join-Path $env:LOCALAPPDATA "KEYBRIDGE\$version"
 $exe = Join-Path $installDir 'KeyBridgeReceiver.exe'
 
@@ -45,7 +45,7 @@ try {
     Write-Host '請確認 Windows 藍牙已開啟，並在設定中與手機配對。配對不代表 KEYBRIDGE 已連線。'
     $choice = Read-Host '輸入 S 開啟藍牙設定；按 Enter 繼續啟動接收程式'
     if ($choice -match '^[sS]$') { Start-Process 'ms-settings:bluetooth'; Read-Host '完成檢查後按 Enter' | Out-Null }
-    Write-Host '手機第一次使用：選擇「完整文字」、選取已配對電腦，輸入接收程式顯示的六位代碼。成功後下次會自動連線。'
+    Write-Host '這是進階完整文字模式：手機選擇「完整文字」、選取已配對電腦，輸入接收程式顯示的六位代碼。成功後下次會自動連線。'
     Write-Host '請保持接收程式視窗開啟；自動連線不會自動輸入文字，必須在手機按「傳送」。'
     & $exe
     if ($LASTEXITCODE -ne 0) { throw "接收程式結束，代碼：$LASTEXITCODE" }
