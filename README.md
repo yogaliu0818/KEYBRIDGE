@@ -1,11 +1,11 @@
-# KEYBRIDGE 0.6 測試版
+# KEYBRIDGE 0.7 測試版
 
 Android 手機在本機編輯文字，使用藍牙 HID 鍵盤，或透過 Windows 藍牙接收程式送出 Unicode 輸入。首頁提供獨立 Enter 按鈕。這是測試版，尚未在使用者的 POCO X6 與 Windows 11 組合完成實機驗收。
 
 ## 隨附檔案
 
-- `KEYBRIDGE_0.6.0-beta.apk`：Android 除錯版；僅支援 ARM64、Android 9 以上。簽章為開發用簽章。
-- `KEYBRIDGE_Windows_receiver_0.6.0-beta.zip`：Windows x64 自包含 EXE，無須另裝 .NET；未經程式碼簽署。
+- `KEYBRIDGE_0.7.0-beta.apk`：Android 除錯版；僅支援 ARM64、Android 9 以上。簽章為開發用簽章。
+- `KEYBRIDGE_Windows_receiver_0.7.0-beta.zip`：Windows x64 自包含 EXE，無須另裝 .NET；未經程式碼簽署。
 - 原始碼：`Android/` 與 `Windows/`。
 
 ## 完整文字模式
@@ -24,13 +24,9 @@ Windows 接收端執行之前會檢查前景視窗，避免將文字輸入接收
 
 需手機實際支援 Android HID Device 且與電腦完成配對。英文、數字和美式鍵盤的部分符號使用按下／釋放事件；中文和 Emoji 需用完整文字模式。鍵盤配置、輸入法與 Caps Lock 會影響輸出。系統可能在 App 不處於前景時取消 HID 註冊。
 
-## 語音
-
-使用者主動選擇下載 tiny 或 base 多語言模型，下載約 75 或 142 MiB，經 HTTPS 並依上游 SHA-1 校驗。錄音留在手機本機；最大 60 秒，離開 App 會停止錄音。本機 Whisper 可能輸出簡體中文或誤辨，沒有自動繁簡轉換。下載、錄音、辨識時間、記憶體耗電及模型相容性均尚未於 POCO X6 實測。
-
 ## 安全與限制
 
-- 不記錄鍵盤輸入、不自動輸入、不上傳錄音。模型下載時伺服器會看到一般網路連線資訊。
+- 不記錄鍵盤輸入、不自動輸入、不錄音、不上傳資料。
 - Windows 藍牙連線使用驗證與加密。六位代碼只用於首次信任交換；後續使用 Android Keystore 與 Windows 目前使用者 DPAPI 保護的 256-bit 信任金鑰，並以隨機挑戰驗證。此測試版未經獨立安全審查。
 - 具訊息 ID，但 Android 不自動重送；Windows 僅在程式執行期間保留最近 1024 個 ID。使用者再按一次會產生新 ID。
 - 自動連線只在 App 啟動時嘗試一次；背景常駐、即時同步、繁體轉換尚未實作。對端掉線不能在所有情況下即時發現。
@@ -44,14 +40,14 @@ Windows 接收端執行之前會檢查前景視窗，避免將文字輸入接收
 
 ## 授權
 
-本專案自身程式碼尚未指定開源授權。第三方程式保留其原始授權及著作權聲明；whisper.cpp 的授權位於 `Android/app/src/main/cpp/whisper/LICENSE`，其中部分範例和後端使用不同授權。請參閱 `third-party-licenses/` 與各元件原始檔中的聲明。
+本專案自身程式碼尚未指定開源授權。AndroidX、Kotlin 與其他第三方依賴的授權請參閱 `third-party-licenses/`。
 
 ## 從原始碼建置
 
-Android：JDK 17、Android SDK 35、NDK 27.2.12479018、CMake 3.22.1，使用 Android Studio 開啟 `Android/`。執行 `./gradlew assembleDebug`（Windows 使用 `gradlew.bat assembleDebug`），需網路下載依賴。
+Android：JDK 17、Android SDK 35，使用 Android Studio 開啟 `Android/`。執行 `./gradlew assembleDebug`（Windows 使用 `gradlew.bat assembleDebug`），需網路下載依賴。
 
 Windows：.NET 8 SDK，在 `Windows/` 執行 `dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true`。需使用 Windows 10 2004 或更新的 SDK。
 
 ## 本環境檢查結果
 
-Android `assembleDebug`、`lintDebug`、APK 簽章驗證；Windows x64 Release 自包含 GUI EXE 編譯。藍牙、手機、模型下載和語音、Windows 執行及焦點／輸入：均未在 POCO X6 與 Windows 11 實機驗收。APK 是 debug 建置；自動測試尚未覆蓋實體藍牙與 Windows 原生 API。繁體中文、Emoji、Enter、藍牙連線及 AI 語音辨識的實際表現仍需測試。
+Android `assembleDebug`、`lintDebug`、APK 簽章驗證；Windows x64 Release 自包含 GUI EXE 編譯。藍牙、手機、Windows 執行及焦點／輸入：均未在 POCO X6 與 Windows 11 實機驗收。APK 是 debug 建置；自動測試尚未覆蓋實體藍牙與 Windows 原生 API。繁體中文、Emoji、Enter 及藍牙連線的實際表現仍需測試。

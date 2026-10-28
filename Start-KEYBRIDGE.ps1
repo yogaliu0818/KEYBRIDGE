@@ -1,11 +1,11 @@
-<# KEYBRIDGE 0.6 beta: verify the receiver before every launch. #>
+<# KEYBRIDGE 0.7 beta: verify the receiver before every launch. #>
 [CmdletBinding()]
 param()
 $ErrorActionPreference = 'Stop'
-$version = 'v0.6.0-beta'
+$version = 'v0.7.0-beta'
 $zipHash = '5119BE60C69C69BA25AC0D690AB6FAC7F458238DD3B086A5405C3700C1D2AE6D'
 $exeHash = 'CA9FD5C18DFA691A6533A4AF5CF654731E23542522D7F875963CCBF782B1CFB9'
-$url = 'https://github.com/yogaliu0818/KEYBRIDGE/releases/download/v0.6.0-beta/KEYBRIDGE_Windows_receiver_0.6.0-beta.zip'
+$url = 'https://github.com/yogaliu0818/KEYBRIDGE/releases/download/v0.7.0-beta/KEYBRIDGE_Windows_receiver_0.7.0-beta.zip'
 $installDir = Join-Path $env:LOCALAPPDATA "KEYBRIDGE\$version"
 $exe = Join-Path $installDir 'KeyBridgeReceiver.exe'
 

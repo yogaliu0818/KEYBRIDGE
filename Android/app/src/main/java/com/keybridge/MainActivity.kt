@@ -22,12 +22,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.border
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.rememberScrollState
@@ -36,7 +32,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.Color
@@ -50,12 +45,10 @@ class MainActivity : ComponentActivity() {
     private var imported by mutableStateOf("")
     private var shareSequence by mutableIntStateOf(0)
     private lateinit var transport: Transport
-    private lateinit var voice: VoiceEngine
     private var status by mutableStateOf("請先在 Windows 設定中完成藍牙配對")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         transport = Transport(this) { status = it }
-        voice = VoiceEngine(this)
         if (intent?.action == Intent.ACTION_SEND) imported = intent.getStringExtra(Intent.EXTRA_TEXT) ?: ""
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(primary = Color(0xFF80D8FF))) {
@@ -68,15 +61,10 @@ class MainActivity : ComponentActivity() {
                 var hidDelay by remember { mutableIntStateOf(prefs.getInt("hidDelay", 30)) }
                 LaunchedEffect(shareSequence) { if (shareSequence > 0) { text = if (text.isEmpty()) imported else text + "\n" + imported; status = "已加入分享的文字，請確認內容" } }
                 var settings by remember { mutableStateOf(false) }
-                var showModelPrompt by remember { mutableStateOf(false) }
                 var pin by remember { mutableStateOf("") }
                 var mode by remember { mutableStateOf(false) }
                 var trusted by remember { mutableStateOf(transport.isTrusted()) }
                 var busy by remember { mutableStateOf(false) }
-                var voiceBusy by remember { mutableStateOf(false) }
-                var recording by remember { mutableStateOf(false) }
-                var modelName by remember { mutableStateOf("base") }
-                var modelInstalled by remember { mutableStateOf(voice.exists(modelName)) }
                 var devices by remember { mutableStateOf(emptyList<android.bluetooth.BluetoothDevice>()) }
                 var selected by remember { mutableStateOf<android.bluetooth.BluetoothDevice?>(null) }
                 val scope = rememberCoroutineScope()
@@ -94,27 +82,11 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                val startRecording: () -> Unit = {
-                    if (!modelInstalled) status = "請先下載語音模型" else if (!voice.prepare()) status = "語音處理進行中" else scope.launch {
-                        voiceBusy = true; recording = true; status = "錄音中（最多 60 秒），點停止後開始辨識"
-                        try { val audio = voice.record(); recording = false; status = "本機辨識中，請稍候…"; val result = voice.transcribe(modelName, audio)
-                            if (result.isBlank()) status = "沒有辨識出文字，請重試" else { text = if (text.isBlank()) result else text + "\n" + result; status = "辨識完成，請確認及修改文字" }
-                        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { status = "語音處理失敗：${e.message}" } finally { recording = false; voiceBusy = false }
-                    }
-                }
-                val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (granted) startRecording() else status = "請允許麥克風權限" }
                 BackHandler(enabled = settings) { settings = false }
                 val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
                     if (granted) { devices = transport.devices(); status = "請選擇已配對的電腦" } else status = "需要附近裝置權限才能使用藍牙"
                 }
                 MaterialTheme(colorScheme = if (light) lightColorScheme(primary = Color(0xFF006D87)) else darkColorScheme(primary = Color(0xFFD1F13C), background = Color(0xFF05080A), surface = Color(0xFF101519), surfaceVariant = Color(0xFF161C1F), onSurface = Color(0xFFF0F3F2))) {
-                if (showModelPrompt) AlertDialog(
-                    onDismissRequest = { showModelPrompt = false },
-                    title = { Text("下載 AI 語音模型") },
-                    text = { Text("下載標準模型約需 142 MiB。下載後語音在手機本機辨識；結果請自行確認。") },
-                    confirmButton = { TextButton(onClick = { showModelPrompt = false; modelName = "base"; modelInstalled = voice.exists("base"); settings = true }) { Text("前往下載") } },
-                    dismissButton = { TextButton(onClick = { showModelPrompt = false }) { Text("稍後再說") } }
-                )
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     Column(Modifier.fillMaxSize().background(if (light) Brush.verticalGradient(listOf(Color(0xFFF3F9FB), Color(0xFFFFFFFF))) else Brush.verticalGradient(listOf(Color(0xFF11171B), Color(0xFF05090B), Color(0xFF06090B)))).safeDrawingPadding().imePadding().padding(horizontal = 22.dp)) {
                         Row(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -145,14 +117,6 @@ class MainActivity : ComponentActivity() {
                                 }
                                 if (trusted && !mode) TextButton(enabled = !busy, onClick = { transport.forgetTrust(); trusted = false; selected = null; pin = ""; status = "已清除手機端信任，請在 Windows 也按「解除信任」後重新配對" }) { Text("解除信任／重新配對") }
                                 Text(status, color = MaterialTheme.colorScheme.primary)
-                                HorizontalDivider()
-                                Text("AI 語音", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                Text("下載後在手機上辨識，錄音不會上傳。辨識可能產生簡體文字。", style = MaterialTheme.typography.bodySmall)
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { listOf("tiny", "base").forEach { name -> FilterChip(selected = modelName == name, enabled = !voiceBusy, onClick = { modelName = name; modelInstalled = voice.exists(name) }, label = { Text(if (name == "tiny") "輕量 · 75 MiB" else "標準 · 142 MiB") }) } }
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    OutlinedButton(enabled = !voiceBusy && !modelInstalled, onClick = { val name = modelName; scope.launch { voiceBusy = true; status = "正在下載模型，請保持 App 開啟…"; try { voice.download(name); modelInstalled = voice.exists(name); status = "模型下載並校驗完成" } catch (e: Exception) { status = "模型下載失敗：${e.message}" }; voiceBusy = false } }) { Text(if (modelInstalled) "模型已下載" else "下載模型") }
-                                    if (modelInstalled) TextButton(enabled = !voiceBusy, onClick = { voice.delete(modelName); modelInstalled = voice.exists(modelName); status = "模型已刪除" }) { Text("刪除") }
-                                }
                                 HorizontalDivider()
                                 Text("一般", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("淺色模式"); Switch(light, { light = it; prefs.edit().putBoolean("light", it).apply() }) }
@@ -203,8 +167,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                     HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = .2f))
                                     Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Box(Modifier.size(48.dp).border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = .7f), CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = .10f), CircleShape).clickable(enabled = !voiceBusy || recording) { if (recording) { voice.stop(); status = "正在結束錄音…" } else if (!modelInstalled) showModelPrompt = true else if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startRecording() else micPermission.launch(Manifest.permission.RECORD_AUDIO) }.semantics { contentDescription = if (recording) "停止錄音" else "AI 語音輸入" }, contentAlignment = Alignment.Center) { TechIcon("mic", Modifier.size(25.dp), MaterialTheme.colorScheme.onSurface) }
-                                        Text(if (recording) "停止錄音" else if (voiceBusy) "辨識中…" else "AI 語音", modifier = Modifier.weight(1f).padding(start = 10.dp), style = MaterialTheme.typography.bodyMedium)
+                                        Spacer(Modifier.weight(1f))
                                         Text("${text.codePointCount(0, text.length)} 字", color = MaterialTheme.colorScheme.onSurface.copy(alpha = .6f), style = MaterialTheme.typography.bodySmall)
                                         Spacer(Modifier.width(12.dp))
                                         TextButton(enabled = text.isNotEmpty() && !busy, onClick = { text = "" }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("✕", fontSize = 20.sp) }
@@ -225,8 +188,7 @@ class MainActivity : ComponentActivity() {
         }
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); if (intent.action == Intent.ACTION_SEND) { imported = intent.getStringExtra(Intent.EXTRA_TEXT) ?: ""; shareSequence++ } }
-    override fun onStop() { voice.stop(); super.onStop() }
-    override fun onDestroy() { voice.stop(); transport.dispose(); super.onDestroy() }
+    override fun onDestroy() { transport.dispose(); super.onDestroy() }
 }
 
 private fun techShape(cut: Float) = GenericShape { size, _ ->

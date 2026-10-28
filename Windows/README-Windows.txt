@@ -1,4 +1,4 @@
-KEYBRIDGE Windows 接收程式 0.6 測試版
+KEYBRIDGE Windows 接收程式 0.7 測試版
 
 1. 先在 Windows 設定 > 藍牙與裝置中與手機完成藍牙配對。
 2. 雙擊 KeyBridgeReceiver.exe，保持圖形化視窗開啟。
@@ -7,4 +7,4 @@ KEYBRIDGE Windows 接收程式 0.6 測試版
 5. 在電腦目標文字欄位點擊游標，手機確認文字後按「傳送」。
 
 要換手機或重新配對，請在 Windows 視窗和手機設定都按「解除信任／重新配對」。
-程式未經程式碼簽署。藍牙、中文、Emoji、Enter、語音及焦點輸入尚未完成 POCO X6 + Windows 11 實機驗收。
+程式未經程式碼簽署。藍牙、中文、Emoji、Enter 及焦點輸入尚未完成 POCO X6 + Windows 11 實機驗收。
