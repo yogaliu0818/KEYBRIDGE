@@ -1,4 +1,4 @@
-KEYBRIDGE Windows 接收程式 0.7.2 測試版
+KEYBRIDGE Windows 接收程式 0.7.3 測試版
 
 1. 先在 Windows 設定 > 藍牙與裝置中與手機完成藍牙配對。
 2. 雙擊 KeyBridgeReceiver.exe，保持圖形化視窗開啟。
