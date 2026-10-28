@@ -1,10 +1,13 @@
 package com.keybridge
 
 import android.Manifest
+import android.content.ClipData
 import android.os.Build
 import android.os.Bundle
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -32,6 +35,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.Color
@@ -40,6 +44,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
+
+private const val WINDOWS_RELEASE_URL = "https://github.com/yogaliu0818/KEYBRIDGE/releases/tag/v0.7.1-beta"
+private const val WINDOWS_PACKAGE_URL = "https://github.com/yogaliu0818/KEYBRIDGE/releases/download/v0.7.1-beta/KEYBRIDGE_Windows_receiver_0.7.1-beta.zip"
+private const val POWERSHELL_INSTALL_COMMAND = """${'$'}kbScript = Join-Path ${'$'}env:TEMP 'Start-KEYBRIDGE.ps1'
+Invoke-WebRequest 'https://raw.githubusercontent.com/yogaliu0818/KEYBRIDGE/main/Start-KEYBRIDGE.ps1' -OutFile ${'$'}kbScript
+Get-Content ${'$'}kbScript
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${'$'}kbScript"""
 
 class MainActivity : ComponentActivity() {
     private var imported by mutableStateOf("")
@@ -118,6 +129,22 @@ class MainActivity : ComponentActivity() {
                                 if (trusted && !mode) TextButton(enabled = !busy, onClick = { transport.forgetTrust(); trusted = false; selected = null; pin = ""; status = "已清除手機端信任，請在 Windows 也按「解除信任」後重新配對" }) { Text("解除信任／重新配對") }
                                 Text(status, color = MaterialTheme.colorScheme.primary)
                                 HorizontalDivider()
+                                Text("Windows 電腦端", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text("選一種方式安裝接收程式。兩種方式都不需要管理員權限；PowerShell 啟動器會在下載後驗證 SHA-256。", style = MaterialTheme.typography.bodySmall)
+                                Button(onClick = { openWebPage(WINDOWS_PACKAGE_URL) }, modifier = Modifier.fillMaxWidth()) { Text("下載 Windows 安裝包（ZIP）") }
+                                Text("方法一：下載 ZIP → 解壓縮 → 開啟 KeyBridgeReceiver.exe。保持接收程式視窗開啟，確認它顯示的 6 位數代碼。", style = MaterialTheme.typography.bodySmall)
+                                OutlinedButton(onClick = { openWebPage(WINDOWS_RELEASE_URL) }, modifier = Modifier.fillMaxWidth()) { Text("查看完整 Release 說明與雜湊") }
+                                Text("方法二：在 Windows 11 PowerShell 貼上以下指令。它會下載可檢查的啟動器，再由啟動器驗證並下載接收程式。", style = MaterialTheme.typography.bodySmall)
+                                Surface(color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
+                                    Text(POWERSHELL_INSTALL_COMMAND, modifier = Modifier.padding(10.dp), fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                                }
+                                OutlinedButton(onClick = {
+                                    val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("KEYBRIDGE PowerShell", POWERSHELL_INSTALL_COMMAND))
+                                    Toast.makeText(this@MainActivity, "PowerShell 指令已複製", Toast.LENGTH_SHORT).show()
+                                }, modifier = Modifier.fillMaxWidth()) { Text("複製 PowerShell 指令") }
+                                Text("安裝後：Windows 與手機先完成系統藍牙配對 → 開啟接收程式 → 在這裡選擇電腦、輸入 6 位數代碼並連線。第一次成功後會記住這台電腦。", style = MaterialTheme.typography.bodySmall)
+                                HorizontalDivider()
                                 Text("一般", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("淺色模式"); Switch(light, { light = it; prefs.edit().putBoolean("light", it).apply() }) }
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("送出後清空文字"); Switch(autoClear, { autoClear = it; prefs.edit().putBoolean("clear", it).apply() }) }
@@ -189,6 +216,11 @@ class MainActivity : ComponentActivity() {
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); if (intent.action == Intent.ACTION_SEND) { imported = intent.getStringExtra(Intent.EXTRA_TEXT) ?: ""; shareSequence++ } }
     override fun onDestroy() { transport.dispose(); super.onDestroy() }
+}
+
+private fun ComponentActivity.openWebPage(url: String) {
+    runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+        .onFailure { Toast.makeText(this, "無法開啟瀏覽器，請稍後再試", Toast.LENGTH_SHORT).show() }
 }
 
 private fun techShape(cut: Float) = GenericShape { size, _ ->

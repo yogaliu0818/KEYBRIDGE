@@ -1,11 +1,11 @@
-# KEYBRIDGE 0.7 測試版
+# KEYBRIDGE 0.7.1 測試版
 
 Android 手機在本機編輯文字，使用藍牙 HID 鍵盤，或透過 Windows 藍牙接收程式送出 Unicode 輸入。首頁提供獨立 Enter 按鈕。這是測試版，尚未在使用者的 POCO X6 與 Windows 11 組合完成實機驗收。
 
 ## 隨附檔案
 
-- `KEYBRIDGE_0.7.0-beta.apk`：Android 除錯版；僅支援 ARM64、Android 9 以上。簽章為開發用簽章。
-- `KEYBRIDGE_Windows_receiver_0.7.0-beta.zip`：Windows x64 自包含 EXE，無須另裝 .NET；未經程式碼簽署。
+- `KEYBRIDGE_0.7.1-beta.apk`：Android 除錯版；僅支援 ARM64、Android 9 以上。簽章為開發用簽章。
+- `KEYBRIDGE_Windows_receiver_0.7.1-beta.zip`：Windows x64 自包含 EXE，無須另裝 .NET；未經程式碼簽署。
 - 原始碼：`Android/` 與 `Windows/`。
 
 ## 完整文字模式
