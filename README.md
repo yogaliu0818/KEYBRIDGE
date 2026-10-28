@@ -1,11 +1,11 @@
-# KEYBRIDGE 0.7.2 測試版
+# KEYBRIDGE 0.7.3 測試版
 
 Android 手機在本機編輯文字，使用藍牙 HID 鍵盤，或透過 Windows 藍牙接收程式送出 Unicode 輸入。首頁提供獨立 Enter 按鈕。這是測試版，尚未在使用者的 POCO X6 與 Windows 11 組合完成實機驗收。
 
 ## 隨附檔案
 
-- `KEYBRIDGE_0.7.2-beta.apk`：Android 除錯版；僅支援 ARM64、Android 9 以上。簽章為開發用簽章。
-- `KEYBRIDGE_Windows_receiver_0.7.2-beta.zip`：Windows x64 自包含 EXE，無須另裝 .NET；未經程式碼簽署。
+- `KEYBRIDGE_0.7.3-beta.apk`：Android 除錯版；僅支援 ARM64、Android 9 以上。簽章為開發用簽章。
+- `KEYBRIDGE_Windows_receiver_0.7.3-beta.zip`：Windows x64 自包含 EXE，無須另裝 .NET；未經程式碼簽署。
 - 原始碼：`Android/` 與 `Windows/`。
 
 ## 直接藍牙鍵盤模式（預設）
@@ -13,7 +13,7 @@ Android 手機在本機編輯文字，使用藍牙 HID 鍵盤，或透過 Window
 這是一般藍牙鍵盤的使用方式：Windows 不需要安裝 KEYBRIDGE 接收程式。
 
 1. 在手機 KEYBRIDGE 的設定中保留「直接鍵盤」，按「啟用手機鍵盤」。
-2. 在 Windows 11 開啟「設定 → 藍牙與裝置 → 新增裝置 → Bluetooth」，選擇 `KEYBRIDGE` 或手機名稱完成配對。
+2. 在 Windows 11 開啟「設定 → 藍牙與裝置 → 新增裝置 → Bluetooth」，選擇手機名稱完成配對。若以前已配對過但沒有鍵盤功能，先在 Windows 移除舊的手機配對，再重新新增。
 3. 回到手機輸入文字，按「傳送」；獨立 Enter 按鈕會送出一次 Enter。
 
 標準 Bluetooth HID 鍵盤可可靠表達的是英文、數字、基本符號與按鍵事件。中文、Emoji、部分非美式鍵盤符號會受 HID 鍵盤配置與 Windows 輸入法限制，不能保證直接輸入；需要完整 Unicode 時，才使用下方的進階模式。
@@ -32,7 +32,7 @@ Windows 接收端執行之前會檢查前景視窗，避免將文字輸入接收
 
 ## HID 鍵盤模式
 
-需手機實際支援 Android HID Device 且與電腦完成配對。英文、數字和美式鍵盤的部分符號使用按下／釋放事件；中文和 Emoji 需用完整文字模式。鍵盤配置、輸入法與 Caps Lock 會影響輸出。系統可能在 App 不處於前景時取消 HID 註冊。
+App 會先嘗試 Android Classic HID；若手機 ROM 拒絕，會改用 BLE HID over GATT 廣播。Windows 仍不需要安裝 KEYBRIDGE 程式，但必須在 App 顯示「BLE HID 鍵盤已啟用」後重新搜尋／配對。英文、數字和美式鍵盤的部分符號使用按下／釋放事件；中文和 Emoji 需用完整文字模式。鍵盤配置、輸入法與 Caps Lock 會影響輸出。系統可能在 App 不處於前景時取消 HID 廣播。
 
 ## 安全與限制
 

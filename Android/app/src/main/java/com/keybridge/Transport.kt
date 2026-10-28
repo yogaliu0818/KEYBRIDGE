@@ -34,13 +34,14 @@ class Transport(private val context: Context, private val status: (String) -> Un
     private var host: BluetoothDevice? = null
     private var registered = false
     private var desiredHost: BluetoothDevice? = null
+    private var bleHid: BleHid? = null
 
     fun devices(): List<BluetoothDevice> = adapter?.bondedDevices?.sortedBy { it.name ?: it.address } ?: emptyList()
     fun savedDevice(): BluetoothDevice? = prefs.getString("device_address", null)?.let { address -> runCatching { adapter?.getRemoteDevice(address) }.getOrNull() }
     fun deviceName(d: BluetoothDevice) = d.name ?: d.address
     fun available() = adapter?.isEnabled == true
     fun isTrusted() = loadToken() != null && prefs.getString("device_address", null) != null
-    fun connected(hidMode: Boolean): Boolean = if (hidMode) host != null else socket?.isConnected == true
+    fun connected(hidMode: Boolean): Boolean = if (hidMode) host != null || bleHid?.isConnected() == true else socket?.isConnected == true
 
     fun closeSocket() { try { socket?.close() } catch (_: Exception) {}; socket = null }
 
@@ -184,11 +185,27 @@ class Transport(private val context: Context, private val status: (String) -> Un
             override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
                 val h = proxy as BluetoothHidDevice; hid = h
                 val sdp = BluetoothHidDeviceAppSdpSettings("KEYBRIDGE", "Keyboard", "KEYBRIDGE", BluetoothHidDevice.SUBCLASS1_KEYBOARD, descriptor)
-                if (!h.registerApp(sdp, null, null, context.mainExecutor, callback)) status("HID 註冊請求失敗；此手機可能不支援")
+                if (!h.registerApp(sdp, null, null, context.mainExecutor, callback)) {
+                    hid = null
+                    status("傳統 HID 不可用，改試 BLE HID…")
+                    startBleHid()
+                }
             }
             override fun onServiceDisconnected(profile: Int) { hid = null; registered = false; host = null; status("HID 服務已中斷") }
         }, BluetoothProfile.HID_DEVICE) ?: false
         if (!ok) status("無法取得 HID 服務；此手機可能不支援") else status("正在註冊 HID，等待系統回應")
+    }
+
+    private fun startBleHid() {
+        if (bleHid == null) {
+            bleHid = BleHid(context, context.getSystemService(BluetoothManager::class.java), status) { device, connected ->
+                if (connected) {
+                    host = device
+                    device?.let { prefs.edit().putString("hid_device_address", it.address).apply() }
+                } else if (host?.address == device?.address || device == null) host = null
+            }
+        }
+        bleHid?.start()
     }
 
     private val callback = object : BluetoothHidDevice.Callback() {
@@ -197,20 +214,30 @@ class Transport(private val context: Context, private val status: (String) -> Un
     }
 
     suspend fun sendHid(text: String, delayMs: Long = 15): String = withContext(Dispatchers.IO) {
-        val target = host ?: return@withContext "HID 尚未連線"; val h = hid ?: return@withContext "HID 服務不可用"
+        val target = host ?: return@withContext "HID 尚未連線"
         val keys = text.map { key(it) ?: return@withContext "包含不支援的字元；請使用完整文字模式" }
+        val h = hid
+        val ble = bleHid
+        if (h == null && ble == null) return@withContext "HID 服務不可用"
         for ((modifier, code) in keys) {
             val down = byteArrayOf(modifier.toByte(), 0, code.toByte(), 0, 0, 0, 0, 0)
-            if (!h.sendReport(target, 0, down)) return@withContext "HID 傳送中斷；部分文字可能已輸入"
+            val sentDown = if (h != null) h.sendReport(target, 0, down) else ble?.sendReport(down) == true
+            if (!sentDown) return@withContext "HID 傳送中斷；部分文字可能已輸入"
             var released = false
-            try { kotlinx.coroutines.delay(delayMs); released = h.sendReport(target, 0, ByteArray(8)); if (!released) return@withContext "HID 釋放按鍵失敗；請斷線並檢查電腦" } finally { if (!released) try { h.sendReport(target, 0, ByteArray(8)) } catch (_: Exception) {} }
+            try {
+                kotlinx.coroutines.delay(delayMs)
+                released = if (h != null) h.sendReport(target, 0, ByteArray(8)) else ble?.sendReport(ByteArray(8)) == true
+                if (!released) return@withContext "HID 釋放按鍵失敗；請斷線並檢查電腦"
+            } finally {
+                if (!released) try { if (h != null) h.sendReport(target, 0, ByteArray(8)) else ble?.sendReport(ByteArray(8)) } catch (_: Exception) {}
+            }
             kotlinx.coroutines.delay(delayMs)
         }
         "HID 按鍵事件已送出；請檢查電腦內容"
     }
 
     fun dispose() { stop(); timer.shutdownNow() }
-    fun stop() { desiredHost = null; closeSocket(); try { hid?.unregisterApp(); hid?.let { adapter?.closeProfileProxy(BluetoothProfile.HID_DEVICE, it) } } catch (_: Exception) {}; hid = null; host = null; registered = false }
+    fun stop() { desiredHost = null; closeSocket(); bleHid?.stop(); bleHid = null; try { hid?.unregisterApp(); hid?.let { adapter?.closeProfileProxy(BluetoothProfile.HID_DEVICE, it) } } catch (_: Exception) {}; hid = null; host = null; registered = false }
 
     private fun key(c: Char): Pair<Int,Int>? {
         if (c in 'a'..'z') return 0 to (4 + (c - 'a')); if (c in 'A'..'Z') return 2 to (4 + (c - 'A')); if (c in '1'..'9') return 0 to (30 + (c - '1')); if (c == '0') return 0 to 39

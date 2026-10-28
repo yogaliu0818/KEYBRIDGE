@@ -45,8 +45,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 
-private const val WINDOWS_RELEASE_URL = "https://github.com/yogaliu0818/KEYBRIDGE/releases/tag/v0.7.2-beta"
-private const val WINDOWS_PACKAGE_URL = "https://github.com/yogaliu0818/KEYBRIDGE/releases/download/v0.7.2-beta/KEYBRIDGE_Windows_receiver_0.7.2-beta.zip"
+private const val WINDOWS_RELEASE_URL = "https://github.com/yogaliu0818/KEYBRIDGE/releases/tag/v0.7.3-beta"
+private const val WINDOWS_PACKAGE_URL = "https://github.com/yogaliu0818/KEYBRIDGE/releases/download/v0.7.3-beta/KEYBRIDGE_Windows_receiver_0.7.3-beta.zip"
 private const val POWERSHELL_INSTALL_COMMAND = """${'$'}kbScript = Join-Path ${'$'}env:TEMP 'Start-KEYBRIDGE.ps1'
 Invoke-WebRequest 'https://raw.githubusercontent.com/yogaliu0818/KEYBRIDGE/main/Start-KEYBRIDGE.ps1' -OutFile ${'$'}kbScript
 Get-Content ${'$'}kbScript
@@ -79,13 +79,15 @@ class MainActivity : ComponentActivity() {
                 var devices by remember { mutableStateOf(emptyList<android.bluetooth.BluetoothDevice>()) }
                 var selected by remember { mutableStateOf<android.bluetooth.BluetoothDevice?>(null) }
                 val scope = rememberCoroutineScope()
-                val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-                    if (granted) { devices = transport.devices(); status = "附近裝置權限已開啟" } else status = "需要附近裝置權限才能使用藍牙；請到 Android 設定允許"
+                val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+                    val granted = result.values.all { it }
+                    if (granted) { devices = transport.devices(); prefs.edit().putBoolean("hid_enabled", true).apply(); transport.startHid(); status = "附近裝置權限已開啟，正在啟動 BLE HID" } else status = "需要附近裝置權限才能使用藍牙鍵盤；請到 Android 設定允許"
                 }
                 LaunchedEffect(Unit) {
-                    if (Build.VERSION.SDK_INT >= 31 && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    val needed = if (Build.VERSION.SDK_INT >= 31) arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE).filter { ContextCompat.checkSelfPermission(this@MainActivity, it) != PackageManager.PERMISSION_GRANTED }.toTypedArray() else emptyArray()
+                    if (needed.isNotEmpty()) {
                         delay(250)
-                        permission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                        permission.launch(needed)
                     }
                     val canReadBluetooth = Build.VERSION.SDK_INT < 31 || ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
                     if (canReadBluetooth && prefs.getBoolean("hid_enabled", false)) transport.startHid()
@@ -117,10 +119,11 @@ class MainActivity : ComponentActivity() {
                                 Text("我的電腦", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Text(if (mode) "直接鍵盤模式：不需要在 Windows 安裝任何程式。先啟用手機鍵盤，再到 Windows 新增藍牙裝置並選擇這支手機。" else if (trusted) "已記住這台電腦。下次開啟 App 會自動嘗試連線；傳送前仍會等你按下「傳送」。" else "進階完整文字模式需要 Windows 接收程式與首次信任代碼。", style = MaterialTheme.typography.bodySmall)
                                 OutlinedButton(enabled = !busy, onClick = {
-                                    if (Build.VERSION.SDK_INT >= 31 && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) permission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                                    val needed = if (Build.VERSION.SDK_INT >= 31) arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE).filter { ContextCompat.checkSelfPermission(this@MainActivity, it) != PackageManager.PERMISSION_GRANTED }.toTypedArray() else emptyArray()
+                                    if (needed.isNotEmpty()) permission.launch(needed)
                                     else if (mode) { prefs.edit().putBoolean("hid_enabled", true).apply(); transport.startHid(); status = "手機鍵盤已啟用；請在 Windows 新增藍牙裝置並選擇 KEYBRIDGE" }
                                     else { devices = transport.devices(); status = if (transport.available()) "請選擇已配對的電腦" else "請開啟藍牙" }
-                                }) { Text(if (Build.VERSION.SDK_INT >= 31 && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) "允許附近裝置並載入電腦" else if (mode) "啟用手機鍵盤" else "選擇已配對裝置") }
+                                }) { Text(if (Build.VERSION.SDK_INT >= 31 && (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED)) "允許附近裝置並載入電腦" else if (mode) "啟用手機鍵盤" else "選擇已配對裝置") }
                                 if (!mode) devices.forEach { d -> Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = selected == d, onClick = { selected = d }, enabled = !busy); Text(transport.deviceName(d)) } }
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     FilterChip(selected = mode, onClick = { mode = true; transport.stop(); status = "已切換直接鍵盤模式" }, label = { Text("直接鍵盤") }, enabled = !busy)
